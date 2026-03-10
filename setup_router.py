@@ -71,8 +71,6 @@ def setup_hotspot(ssid, password, con_name):
         print(f"Jetson's IP Address on the internal network: {ip_output}")
     print("="*50)
 
-# --- FLASK WEB APP ---
-
 app = Flask(__name__)
 
 def get_router_info():
@@ -133,6 +131,20 @@ def get_router_info():
                             match = re.search(r'(\d+) channels in total', line)
                             if match:
                                 info['total_channels'] = match.group(1)
+                    
+                    if not current_channel:
+                        try:
+                            chan_out = subprocess.check_output(f"nmcli -t -f 802-11-wireless.channel connection show '{con_name}'", shell=True, text=True).strip()
+                            if chan_out and ':' in chan_out:
+                                conf_chan = chan_out.split(':', 1)[1].strip()
+                                if conf_chan == '0':
+                                    info['frequency'] = 'Auto (Selected by OS)'
+                                    current_channel = '0'
+                                elif conf_chan:
+                                    current_channel = conf_chan
+                                    info['frequency'] = f"Channel {conf_chan}"
+                        except Exception:
+                            pass
                     
                     info['available_channels'] = available_channels
                     info['current_channel'] = current_channel

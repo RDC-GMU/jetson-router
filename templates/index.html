@@ -173,6 +173,7 @@
                         {% if router_info.available_channels %}
                         <form method="POST" action="/change_channel" style="display:inline; margin-left: 15px;">
                             <select name="channel" style="font-family: monospace; border: 1px solid #000; padding: 2px;">
+                                <option value="0" {% if router_info.current_channel == '0' %}selected{% endif %}>Auto</option>
                                 {% for ch in router_info.available_channels %}
                                 <option value="{{ ch }}" {% if router_info.current_channel == ch %}selected{% endif %}>CH {{ ch }}</option>
                                 {% endfor %}
