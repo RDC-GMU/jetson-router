@@ -3,6 +3,8 @@ import subprocess
 import sys
 import time
 import argparse
+import re
+from flask import Flask, render_template
 
 def run_command(command, check=True):
     try:
@@ -16,13 +18,14 @@ def run_command(command, check=True):
         return None
 
 def get_wifi_interface():
-    output = run_command("nmcli -t -f DEVICE,TYPE d")
-    for line in output.split('\n'):
-        if not line:
-            continue
-        parts = line.split(':')
-        if len(parts) >= 2 and parts[1] == 'wifi':
-            return parts[0]
+    output = run_command("nmcli -t -f DEVICE,TYPE d", check=False)
+    if output:
+        for line in output.split('\n'):
+            if not line:
+                continue
+            parts = line.split(':')
+            if len(parts) >= 2 and parts[1] == 'wifi':
+                return parts[0]
     return None
 
 def setup_hotspot(ssid, password, con_name):
@@ -68,16 +71,73 @@ def setup_hotspot(ssid, password, con_name):
         print(f"Jetson's IP Address on the internal network: {ip_output}")
     print("="*50)
 
+# --- FLASK WEB APP ---
+
+app = Flask(__name__)
+
+def get_router_info():
+    iface = get_wifi_interface()
+    info = {
+        'interface': iface,
+        'ip': 'Unknown',
+        'ssid': 'Unknown',
+        'status': 'Inactive'
+    }
+    if iface:
+        try:
+            ip_out = subprocess.check_output(f"ip -4 addr show {iface} | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){{3}}'", shell=True, text=True)
+            if ip_out:
+                info['ip'] = ip_out.strip()
+            
+            con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
+            ssid = con_out.split(':')[1].strip()
+            if ssid and ssid != '--':
+                info['ssid'] = ssid
+                info['status'] = 'Active'
+        except Exception:
+            pass
+    return info
+
+def get_connected_devices():
+    iface = get_wifi_interface()
+    devices = []
+    if iface:
+        try:
+            output = subprocess.check_output(f"ip neigh show dev {iface}", shell=True, text=True)
+            for line in output.split('\n'):
+                if not line.strip() or 'FAILED' in line or 'INCOMPLETE' in line:
+                    continue
+                parts = line.split()
+                if len(parts) >= 5:
+                    ip = parts[0]
+                    mac = parts[4]
+                    state = parts[-1]
+                    devices.append({'ip': ip, 'mac': mac, 'state': state})
+        except Exception:
+            pass
+    return devices
+
+@app.route('/')
+def index():
+    router_info = get_router_info()
+    devices = get_connected_devices()
+    return render_template('index.html', router_info=router_info, devices=devices)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Setup a WiFi hotspot (internal network) on the Jetson")
+    parser = argparse.ArgumentParser(description="Setup a WiFi hotspot and launch the web UI admin panel on the Jetson")
     parser.add_argument("--ssid", type=str, default="RDCJetson", help="SSID for the hotspot")
     parser.add_argument("--password", type=str, default="jetson123", help="Password for the hotspot (min 8 characters)")
     parser.add_argument("--name", type=str, default="RDCJetson", help="Name of the NetworkManager connection")
+    parser.add_argument("--skip-network", action="store_true", help="Skip creating the network and just start the Web UI")
     
     args = parser.parse_args()
     
-    if args.password and len(args.password) < 8:
-        print("Error: Password must be at least 8 characters long.")
-        sys.exit(1)
+    if not args.skip_network:
+        if args.password and len(args.password) < 8:
+            print("Error: Password must be at least 8 characters long.")
+            sys.exit(1)
+        setup_hotspot(args.ssid, args.password, args.name)
         
-    setup_hotspot(args.ssid, args.password, args.name)
+    print("Starting Web Admin server on port 80...")
+    app.run(host='0.0.0.0', port=80)

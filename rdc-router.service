@@ -1,12 +1,14 @@
 [Unit]
-Description=RDC Jetson WiFi Hotspot Setup Service
+Description=RDC Jetson WiFi Hotspot & Web UI Service
 After=NetworkManager.service
 Wants=NetworkManager.service
 
 [Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 /home/blob/Documents/jetson/router/setup_router.py
-RemainAfterExit=yes
+Type=simple
+WorkingDirectory=/home/blob/Documents/jetson/router
+ExecStart=/home/blob/Documents/jetson/router/venv/bin/python /home/blob/Documents/jetson/router/setup_router.py
+Restart=on-failure
+RestartSec=5s
 StandardOutput=journal
 StandardError=journal
 

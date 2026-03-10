@@ -1,7 +1,14 @@
 #!/bin/bash
 
-echo "Installing rdc-router service..."
+echo "Setting up Python virtual environment..."
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
 
+echo "Installing required Python packages..."
+./venv/bin/pip install flask
+
+echo "Installing rdc-router service..."
 # Determine the absolute path of the current directory where the repo is cloned
 CURRENT_DIR=$(pwd)
 
