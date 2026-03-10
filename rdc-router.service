@@ -1,0 +1,14 @@
+[Unit]
+Description=RDC Jetson WiFi Hotspot Setup Service
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/blob/Documents/jetson/router/setup_router.py
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
