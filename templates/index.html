@@ -4,17 +4,17 @@
     <title>Jetson Router Interface</title>
     <style>
         body {
-            font-family: Arial, Helvetica, sans-serif;
-            background-color: #e5e5e5;
+            font-family: monospace;
+            background-color: #f0f0f0;
             margin: 0;
             padding: 0;
-            color: #333;
+            color: #000;
         }
         .header {
-            background-color: #1a428a;
-            color: #fff;
-            padding: 20px;
-            border-bottom: 5px solid #000;
+            background-color: #ffffff;
+            color: #000;
+            padding: 15px 20px;
+            border-bottom: 2px solid #000;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -23,157 +23,183 @@
             margin: 0;
             font-size: 24px;
             font-weight: bold;
-            font-style: italic;
-            letter-spacing: 2px;
+            font-family: monospace;
         }
         .header .model {
             font-size: 14px;
-            color: #ccc;
-        }
-        .container {
-            width: 800px;
-            margin: 20px auto;
-            background-color: #fff;
-            border: 1px solid #999;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        }
-        .tabs {
-            background-color: #666;
-            padding: 5px 10px;
-            border-bottom: 2px solid #333;
-        }
-        .tab {
-            display: inline-block;
-            background-color: #fff;
             color: #000;
-            padding: 5px 15px;
-            font-weight: bold;
-            font-size: 12px;
-            cursor: default;
         }
-        .content {
-            padding: 20px;
+        
+        /* Main Layout */
+        .layout {
+            display: flex;
+            margin: 20px;
+            gap: 20px;
+            align-items: flex-start;
         }
+        
+
+        /* Main Content container */
+        .container {
+            flex-grow: 1;
+            background-color: #ffffff;
+            border: 1px solid #000;
+        }
+        
         h2 {
-            border-bottom: 2px solid #1a428a;
-            color: #1a428a;
             font-size: 18px;
             margin-top: 0;
-            padding-bottom: 5px;
+            padding: 15px;
+            border-bottom: 1px solid #000;
+            background-color: #e8e8e8;
+            margin-bottom: 0px;
         }
+        
+        .info-panel {
+            padding: 20px;
+            border-bottom: 1px solid #000;
+        }
+        
         .info-grid {
             display: grid;
             grid-template-columns: 200px 1fr;
             gap: 10px;
-            margin-bottom: 30px;
             font-size: 14px;
         }
+        
         .label {
             font-weight: bold;
-            text-align: right;
         }
+        
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 14px;
-            margin-bottom: 20px;
         }
+        
         th {
-            background-color: #1a428a;
-            color: white;
+            background-color: #e8e8e8;
+            color: #000;
             text-align: left;
-            padding: 8px;
-            border: 1px solid #000;
-        }
-        td {
-            padding: 8px;
-            border: 1px solid #ccc;
-        }
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        .mac {
-            font-family: "Courier New", Courier, monospace;
-        }
-        .footer {
-            text-align: center;
-            font-size: 11px;
-            color: #666;
-            margin-top: 20px;
             padding: 10px;
+            border: 1px solid #000;
+            border-top: none;
+            border-left: none;
         }
+        th:last-child {
+            border-right: none;
+        }
+        
+        td {
+            padding: 10px;
+            border: 1px solid #000;
+            border-left: none;
+        }
+        td:last-child {
+            border-right: none;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #ffffff;
+        }
+        tr:nth-child(odd) {
+            background-color: #f8f8f8;
+        }
+        
+        .mac {
+            font-family: monospace;
+        }
+        
+
+        
         .status-active { color: #008000; font-weight: bold; }
         .status-inactive { color: #cc0000; font-weight: bold; }
         
-        .btn-refresh {
-            background-color: #e0e0e0;
-            border: 1px solid #999;
-            padding: 5px 15px;
-            cursor: pointer;
-            font-weight: bold;
+        /* Pagination */
+        .pagination {
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: #ffffff;
         }
-        .btn-refresh:hover {
-            background-color: #d0d0d0;
+        
+        .page-btn {
+            background-color: #e8e8e8;
+            border: 1px solid #000;
+            padding: 5px 10px;
+            font-family: monospace;
+            cursor: pointer;
+        }
+        
+        .page-btn.disabled {
+            color: #999;
+            cursor: default;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>RDC-JETSON <span style="font-size: 12px; font-weight: normal; font-style: normal;">Wireless-G Broadband Jetson Hotspot</span></h1>
-        <div class="model">Model No. ORIN-NX-01</div>
+        <h1>Jetson Hotspot Status</h1>
+        <button class="page-btn" onclick="location.reload();" style="margin-left: auto;">Refresh Data</button>
     </div>
     
-    <div class="container">
-        <div class="tabs">
-            <div class="tab">Setup / Status</div>
-        </div>
-        
-        <div class="content">
+    <div class="layout">
+
+        <div class="container">
             <h2>Router Information</h2>
-            <div class="info-grid">
-                <div class="label">Status:</div>
-                <div class="{% if router_info.status == 'Active' %}status-active{% else %}status-inactive{% endif %}">
-                    {{ router_info.status }}
+            <div class="info-panel">
+                <div class="info-grid">
+                    <div class="label">Status:</div>
+                    <div class="{% if router_info.status == 'Active' %}status-active{% else %}status-inactive{% endif %}">
+                        {{ router_info.status }}
+                    </div>
+                    
+                    <div class="label">Network Name (SSID):</div>
+                    <div>{{ router_info.ssid }}</div>
+                    
+                    <div class="label">IP Address:</div>
+                    <div>{{ router_info.ip }}</div>
+                    
+                    <div class="label">Wireless Interface:</div>
+                    <div>{{ router_info.interface }}</div>
                 </div>
-                
-                <div class="label">Network Name (SSID):</div>
-                <div>{{ router_info.ssid }}</div>
-                
-                <div class="label">IP Address:</div>
-                <div>{{ router_info.ip }}</div>
-                
-                <div class="label">Wireless Interface:</div>
-                <div>{{ router_info.interface }}</div>
             </div>
             
-            <h2>Connected Devices (DHCP Client Table)</h2>
-            {% if devices %}
             <table>
                 <thead>
                     <tr>
+                        <th>ID</th>
                         <th>IP Address</th>
                         <th>MAC Address</th>
                         <th>Connection State</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for dev in devices %}
-                    <tr>
-                        <td style="font-weight: bold;">{{ dev.ip }}</td>
-                        <td class="mac">{{ dev.mac }}</td>
-                        <td>{{ dev.state }}</td>
-                    </tr>
-                    {% endfor %}
+                    {% if devices %}
+                        {% for dev in devices %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td style="font-weight: bold;">{{ dev.ip }}</td>
+                            <td class="mac">{{ dev.mac }}</td>
+                            <td>{{ dev.state }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #666; font-style: italic; padding: 20px;">No devices are currently active or reachable.</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
-            {% else %}
-            <p style="text-align: center; color: #666; font-style: italic;">No devices are currently active or reachable. (Clients will appear as they begin sending traffic.)</p>
-            {% endif %}
             
-            <div style="text-align: right; margin-top: 20px;">
-                <button class="btn-refresh" onclick="location.reload();">Refresh Page</button>
+            <div class="pagination">
+                <button class="page-btn disabled">Previous</button>
+                <span>Page 1 of 1</span>
+                <button class="page-btn disabled">Next</button>
             </div>
         </div>
     </div>
+
 </body>
 </html>
