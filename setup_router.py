@@ -98,10 +98,30 @@ def get_router_info():
             pass
     return info
 
+import glob
+
 def get_connected_devices():
     iface = get_wifi_interface()
-    devices = []
+    devices = {}
     if iface:
+        lease_files = glob.glob(f"/var/lib/NetworkManager/dnsmasq-*.leases") + \
+                      glob.glob(f"/var/run/nm-dnsmasq-*.leases") + \
+                      glob.glob(f"/var/lib/misc/dnsmasq.leases")
+        for lf in lease_files:
+            try:
+                with open(lf, 'r') as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) >= 4:
+                            mac = parts[1].upper()
+                            ip = parts[2]
+                            hostname = parts[3]
+                            if hostname == '*':
+                                hostname = 'Unknown'
+                            devices[ip] = {'ip': ip, 'mac': mac, 'state': 'Standby (DHCP Lease)'}
+            except Exception:
+                pass
+
         try:
             output = subprocess.check_output(f"ip neigh show dev {iface}", shell=True, text=True)
             for line in output.split('\n'):
@@ -110,12 +130,15 @@ def get_connected_devices():
                 parts = line.split()
                 if len(parts) >= 5:
                     ip = parts[0]
-                    mac = parts[4]
+                    mac = parts[4].upper()
                     state = parts[-1]
-                    devices.append({'ip': ip, 'mac': mac, 'state': state})
+                    if ip in devices:
+                        devices[ip]['state'] = f"Active ({state})"
+                    else:
+                        devices[ip] = {'ip': ip, 'mac': mac, 'state': f"Active ({state})"}
         except Exception:
             pass
-    return devices
+    return list(devices.values())
 
 @app.route('/')
 def index():
