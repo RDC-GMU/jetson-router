@@ -14,8 +14,10 @@ This is especially useful for robotics or IoT applications where you want an iso
 ## Files Included
 
 - `setup_router.py`: The core python script that uses `nmcli` to set up the NetworkManager `RDCJetson` connection.
+- `teardown_router.py`: A script to gracefully turn off and delete the hotspot connection in NetworkManager.
 - `rdc-router.service`: The systemd service configuration file.
 - `install_service.sh`: A shell script to deploy, enable, and start the systemd service automatically.
+- `stop_service.sh`: A shell script to stop and disable the service, along with removing the hotspot.
 
 ## Usage
 
@@ -51,6 +53,22 @@ chmod +x install_service.sh
 You can check the status of the service at any time with:
 ```bash
 systemctl status rdc-router.service
+```
+
+### Option 3: Turning it Off (Teardown)
+
+If you need to stop the hotspot so the Jetson can connect to a normal WiFi network (like eduroam or a home network):
+
+If you ran it manually, you can just run:
+```bash
+chmod +x teardown_router.py
+./teardown_router.py
+```
+
+If you installed the service, use the stop script so it doesn't automatically turn back on when you reboot:
+```bash
+chmod +x stop_service.sh
+./stop_service.sh
 ```
 
 ## How It Works
