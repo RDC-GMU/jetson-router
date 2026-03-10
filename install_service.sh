@@ -1,7 +1,19 @@
 #!/bin/bash
 
 echo "Installing rdc-router service..."
-sudo cp /home/blob/Documents/jetson/router/rdc-router.service /etc/systemd/system/
+
+# Determine the absolute path of the current directory where the repo is cloned
+CURRENT_DIR=$(pwd)
+
+# Create a temporary copy of the service file to modify
+cp rdc-router.service /tmp/rdc-router.service
+
+# Use sed to replace the placeholder paths with the actual paths dynamically
+sed -i "s|WorkingDirectory=.*|WorkingDirectory=${CURRENT_DIR}|g" /tmp/rdc-router.service
+sed -i "s|ExecStart=.*|ExecStart=${CURRENT_DIR}/venv/bin/python ${CURRENT_DIR}/setup_router.py|g" /tmp/rdc-router.service
+
+echo "Configuring service to run from: ${CURRENT_DIR}"
+sudo mv /tmp/rdc-router.service /etc/systemd/system/rdc-router.service
 sudo chmod 644 /etc/systemd/system/rdc-router.service
 
 echo "Reloading systemd daemon..."
@@ -9,7 +21,8 @@ sudo systemctl daemon-reload
 
 echo "Enabling and starting the service..."
 sudo systemctl enable rdc-router.service
+
 sudo systemctl start rdc-router.service
 
 echo "Service installation complete!"
-echo "You can check the status with: sudo systemctl status rdc-router.service"
+echo "Check router & web UI status with: sudo systemctl status rdc-router.service"
