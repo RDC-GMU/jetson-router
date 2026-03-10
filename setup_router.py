@@ -118,19 +118,19 @@ def get_router_info():
                     available_channels = []
                     current_channel = ""
                     freq_out = subprocess.check_output(f"iwlist {iface} freq", shell=True, text=True)
-                    for line in freq_out.split('\\n'):
+                    for line in freq_out.split('\n'):
                         line = line.strip()
                         if line.startswith("Channel "):
-                            match = re.search(r'Channel\\s+(\\d+)\\s+:', line)
+                            match = re.search(r'Channel\s+(\d+)\s+:', line)
                             if match:
                                 available_channels.append(str(int(match.group(1))))
                         elif "Current Frequency:" in line:
                             info['frequency'] = line.split('Current Frequency:')[1].strip()
-                            match = re.search(r'Channel\\s+(\\d+)', info['frequency'])
+                            match = re.search(r'Channel\s+(\d+)', info['frequency'])
                             if match:
                                 current_channel = str(int(match.group(1)))
                         elif "channels in total" in line:
-                            match = re.search(r'(\\d+) channels in total', line)
+                            match = re.search(r'(\d+) channels in total', line)
                             if match:
                                 info['total_channels'] = match.group(1)
                     
