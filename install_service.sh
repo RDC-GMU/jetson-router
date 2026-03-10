@@ -6,7 +6,7 @@ if [ ! -d "venv" ]; then
 fi
 
 echo "Installing required Python packages..."
-./venv/bin/pip install flask
+./venv/bin/pip install -r requirements.txt
 
 echo "Installing rdc-router service..."
 # Determine the absolute path of the current directory where the repo is cloned
