@@ -81,6 +81,7 @@ def get_router_info():
         'interface': iface,
         'ip': 'Unknown',
         'ssid': 'Unknown',
+        'password': 'Unknown',
         'status': 'Inactive'
     }
     if iface:
@@ -90,10 +91,24 @@ def get_router_info():
                 info['ip'] = ip_out.strip()
             
             con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
-            ssid = con_out.split(':')[1].strip()
-            if ssid and ssid != '--':
-                info['ssid'] = ssid
+            con_name = con_out.split(':')[1].strip()
+            if con_name and con_name != '--':
+                info['ssid'] = con_name
                 info['status'] = 'Active'
+                try:
+                    actual_ssid = subprocess.check_output(f"nmcli -t -f 802-11-wireless.ssid connection show '{con_name}'", shell=True, text=True).strip()
+                    if actual_ssid and ':' in actual_ssid:
+                        info['ssid'] = actual_ssid.split(':', 1)[1].strip()
+                except Exception:
+                    pass
+                try:
+                    psk = subprocess.check_output(f"nmcli -s -g 802-11-wireless-security.psk connection show '{con_name}'", shell=True, text=True).strip()
+                    if psk:
+                        info['password'] = psk
+                    else:
+                        info['password'] = 'None (Open Network)'
+                except Exception:
+                    info['password'] = 'Unknown'
         except Exception:
             pass
     return info
