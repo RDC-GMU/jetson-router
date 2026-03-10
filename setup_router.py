@@ -82,7 +82,9 @@ def get_router_info():
         'ip': 'Unknown',
         'ssid': 'Unknown',
         'password': 'Unknown',
-        'status': 'Inactive'
+        'status': 'Inactive',
+        'frequency': 'Unknown',
+        'total_channels': 'Unknown'
     }
     if iface:
         try:
@@ -109,6 +111,20 @@ def get_router_info():
                         info['password'] = 'None (Open Network)'
                 except Exception:
                     info['password'] = 'Unknown'
+
+                try:
+                    freq_out = subprocess.check_output(f"iwlist {iface} freq", shell=True, text=True)
+                    for line in freq_out.split('\\n'):
+                        line = line.strip()
+                        if "Current Frequency:" in line:
+                            info['frequency'] = line.split('Current Frequency:')[1].strip()
+                        elif "channels in total" in line:
+                            match = re.search(r'(\\d+) channels in total', line)
+                            if match:
+                                info['total_channels'] = match.group(1)
+                except Exception:
+                    info['frequency'] = 'Unavailable'
+                    info['total_channels'] = 'Unavailable'
         except Exception:
             pass
     return info
