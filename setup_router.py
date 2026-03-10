@@ -4,7 +4,7 @@ import sys
 import time
 import argparse
 import re
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect
 
 def run_command(command, check=True):
     try:
@@ -84,7 +84,9 @@ def get_router_info():
         'password': 'Unknown',
         'status': 'Inactive',
         'frequency': 'Unknown',
-        'total_channels': 'Unknown'
+        'total_channels': 'Unknown',
+        'current_channel': 'Unknown',
+        'available_channels': []
     }
     if iface:
         try:
@@ -113,15 +115,27 @@ def get_router_info():
                     info['password'] = 'Unknown'
 
                 try:
+                    available_channels = []
+                    current_channel = ""
                     freq_out = subprocess.check_output(f"iwlist {iface} freq", shell=True, text=True)
                     for line in freq_out.split('\\n'):
                         line = line.strip()
-                        if "Current Frequency:" in line:
+                        if line.startswith("Channel "):
+                            match = re.search(r'Channel\\s+(\\d+)\\s+:', line)
+                            if match:
+                                available_channels.append(str(int(match.group(1))))
+                        elif "Current Frequency:" in line:
                             info['frequency'] = line.split('Current Frequency:')[1].strip()
+                            match = re.search(r'Channel\\s+(\\d+)', info['frequency'])
+                            if match:
+                                current_channel = str(int(match.group(1)))
                         elif "channels in total" in line:
                             match = re.search(r'(\\d+) channels in total', line)
                             if match:
                                 info['total_channels'] = match.group(1)
+                    
+                    info['available_channels'] = available_channels
+                    info['current_channel'] = current_channel
                 except Exception:
                     info['frequency'] = 'Unavailable'
                     info['total_channels'] = 'Unavailable'
@@ -176,6 +190,28 @@ def index():
     router_info = get_router_info()
     devices = get_connected_devices()
     return render_template('index.html', router_info=router_info, devices=devices)
+
+@app.route('/change_channel', methods=['POST'])
+def change_channel():
+    iface = get_wifi_interface()
+    new_channel = request.form.get('channel')
+    
+    if iface and new_channel:
+        try:
+            con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
+            con_name = con_out.split(':')[1].strip()
+            if con_name and con_name != '--':
+                # Switch band automatically based on whether channel is 2.4GHz (1-14) or 5GHz (>14)
+                band = 'bg' if int(new_channel) <= 14 else 'a'
+                subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.band '{band}'", shell=True)
+                subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.channel '{new_channel}'", shell=True)
+                subprocess.run(f"nmcli con up '{con_name}'", shell=True)
+        except Exception:
+            pass
+            
+    # Wait a few seconds for network to re-establish
+    time.sleep(3)
+    return redirect('/')
 
 
 if __name__ == "__main__":

@@ -168,7 +168,19 @@
                     <div>{{ router_info.interface }}</div>
                     
                     <div class="label">Operating Frequency:</div>
-                    <div>{{ router_info.frequency }}</div>
+                    <div>
+                        {{ router_info.frequency }}
+                        {% if router_info.available_channels %}
+                        <form method="POST" action="/change_channel" style="display:inline; margin-left: 15px;">
+                            <select name="channel" style="font-family: monospace; border: 1px solid #000; padding: 2px;">
+                                {% for ch in router_info.available_channels %}
+                                <option value="{{ ch }}" {% if router_info.current_channel == ch %}selected{% endif %}>CH {{ ch }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="page-btn" style="padding: 2px 8px; margin-left: 5px;">Switch Channel</button>
+                        </form>
+                        {% endif %}
+                    </div>
                     
                     <div class="label">Available Channels:</div>
                     <div>{{ router_info.total_channels }} Total</div>
