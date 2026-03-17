@@ -1,8 +1,20 @@
 #!/bin/bash
+set -e
+
+CURRENT_DIR=$(pwd)
+
+echo "Installing system dependencies..."
+sudo apt-get install -y python3-venv python3-pip wireless-tools
 
 echo "Setting up Python virtual environment..."
 if [ ! -d "venv" ]; then
     python3 -m venv venv
+fi
+
+# Verify venv was created successfully
+if [ ! -f "venv/bin/pip" ]; then
+    echo "ERROR: Virtual environment creation failed. Please check the output above."
+    exit 1
 fi
 
 echo "Installing required Python packages..."
