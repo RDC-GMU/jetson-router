@@ -44,6 +44,7 @@
             flex-grow: 1;
             background-color: #ffffff;
             border: 1px solid #000;
+            padding: 20px;
         }
         
         h2 {
@@ -188,6 +189,136 @@
                 </div>
             </div>
             
+            <h2>Static IP Reservations</h2>
+            <div class="info-panel">
+                <form method="POST" action="/set_static_ip" style="margin: 0;">
+                    <label class="label">MAC Address:</label>
+                    <input type="text" name="mac" placeholder="AA:BB:CC:DD:EE:FF" style="width: 150px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <label class="label">IP Address:</label>
+                    <input type="text" name="ip" placeholder="10.42.0.x" style="width: 120px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <button type="submit" class="page-btn" style="padding: 2px 8px;">Add / Update Reservation</button>
+                    <small style="margin-left: 10px; color: #666;">(Leave IP blank to remove)</small>
+                </form>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>MAC Address</th>
+                        <th>Reserved IP</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if static_ips %}
+                        {% for mac, ip in static_ips.items() %}
+                        <tr>
+                            <td class="mac">{{ mac }}</td>
+                            <td style="font-weight: bold;">{{ ip }}</td>
+                            <td>
+                                <form method="POST" action="/set_static_ip" style="display:inline;">
+                                    <input type="hidden" name="mac" value="{{ mac }}">
+                                    <input type="hidden" name="ip" value="">
+                                    <button type="submit" class="page-btn" style="padding: 2px 8px; color: #cc0000;">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: #666; font-style: italic; padding: 20px;">No static IP reservations configured.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <h2>Custom DNS Records</h2>
+            <div class="info-panel">
+                <form method="POST" action="/set_custom_dns" style="margin: 0;">
+                    <label class="label">Domain Name:</label>
+                    <input type="text" name="domain" placeholder="example.lan" style="width: 150px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <label class="label">IP Address:</label>
+                    <input type="text" name="ip" placeholder="10.42.0.x" style="width: 120px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <button type="submit" class="page-btn" style="padding: 2px 8px;">Add / Update DNS</button>
+                    <small style="margin-left: 10px; color: #666;">(Leave IP blank to remove)</small>
+                </form>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Target IP</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if dns_records %}
+                        {% for domain, ip in dns_records.items() %}
+                        <tr>
+                            <td class="mac">{{ domain }}</td>
+                            <td style="font-weight: bold;">{{ ip }}</td>
+                            <td>
+                                <form method="POST" action="/set_custom_dns" style="display:inline;">
+                                    <input type="hidden" name="domain" value="{{ domain }}">
+                                    <input type="hidden" name="ip" value="">
+                                    <button type="submit" class="page-btn" style="padding: 2px 8px; color: #cc0000;">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: #666; font-style: italic; padding: 20px;">No custom DNS records configured.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <h2>Port Forwarding</h2>
+            <div class="info-panel">
+                <form method="POST" action="/set_port_forward" style="margin: 0;">
+                    <label class="label">Source Port:</label>
+                    <input type="text" name="src_port" placeholder="80" style="width: 60px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <label class="label">Destination IP:</label>
+                    <input type="text" name="dest_ip" placeholder="10.42.0.x" style="width: 120px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <label class="label">Destination Port:</label>
+                    <input type="text" name="dest_port" placeholder="8080" style="width: 60px; font-family: monospace; border: 1px solid #000; padding: 2px; margin-right: 10px;">
+                    <button type="submit" class="page-btn" style="padding: 2px 8px;">Add Port Forward</button>
+                </form>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Source Port</th>
+                        <th>Destination IP</th>
+                        <th>Destination Port</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if port_forwards %}
+                        {% for fw in port_forwards %}
+                        <tr>
+                            <td style="font-weight: bold;">{{ fw.src_port }}</td>
+                            <td>{{ fw.dest_ip }}</td>
+                            <td>{{ fw.dest_port }}</td>
+                            <td>
+                                <form method="POST" action="/set_port_forward" style="display:inline;">
+                                    <input type="hidden" name="src_port" value="{{ fw.src_port }}">
+                                    <input type="hidden" name="remove" value="true">
+                                    <button type="submit" class="page-btn" style="padding: 2px 8px; color: #cc0000;">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #666; font-style: italic; padding: 20px;">No port forwarding rules configured.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <h2>Connected Devices</h2>
             <table>
                 <thead>
                     <tr>
@@ -195,6 +326,7 @@
                         <th>IP Address</th>
                         <th>MAC Address</th>
                         <th>Connection State</th>
+                        <th>Static IP Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -205,11 +337,18 @@
                             <td style="font-weight: bold;">{{ dev.ip }}</td>
                             <td class="mac">{{ dev.mac }}</td>
                             <td>{{ dev.state }}</td>
+                            <td>
+                                <form method="POST" action="/set_static_ip" style="display:inline;">
+                                    <input type="hidden" name="mac" value="{{ dev.mac }}">
+                                    <input type="text" name="ip" value="{{ dev.static_ip }}" placeholder="10.42.0.x" style="width: 100px; font-family: monospace; border: 1px solid #000; padding: 2px;">
+                                    <button type="submit" class="page-btn" style="padding: 2px 8px;">Save</button>
+                                </form>
+                            </td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="4" style="text-align: center; color: #666; font-style: italic; padding: 20px;">No devices are currently active or reachable.</td>
+                            <td colspan="5" style="text-align: center; color: #666; font-style: italic; padding: 20px;">No devices are currently active or reachable.</td>
                         </tr>
                     {% endif %}
                 </tbody>

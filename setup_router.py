@@ -4,6 +4,8 @@ import sys
 import time
 import argparse
 import re
+import os
+import json
 from flask import Flask, render_template, request, redirect
 
 def run_command(command, check=True):
@@ -195,13 +197,192 @@ def get_connected_devices():
                         devices[ip] = {'ip': ip, 'mac': mac, 'state': f"Active ({state})"}
         except Exception:
             pass
+    static_ips = get_static_ips()
+    for dev in devices.values():
+        dev['static_ip'] = static_ips.get(dev['mac'], '')
+        
     return list(devices.values())
+
+STATIC_IP_CONF = "/etc/NetworkManager/dnsmasq-shared.d/jetson_static_ips.conf"
+CUSTOM_DNS_CONF = "/etc/NetworkManager/dnsmasq-shared.d/jetson_custom_dns.conf"
+PORT_FORWARD_CONF = "/etc/NetworkManager/jetson_port_forwards.json"
+
+def get_custom_dns():
+    dns_records = {}
+    try:
+        if os.path.exists(CUSTOM_DNS_CONF):
+            with open(CUSTOM_DNS_CONF, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("address=/"):
+                        parts = line[9:].split('/')
+                        if len(parts) >= 2:
+                            domain = parts[0]
+                            ip = parts[1]
+                            dns_records[domain] = ip
+    except Exception:
+        pass
+    return dns_records
+
+def set_custom_dns(domain, ip):
+    os.makedirs(os.path.dirname(CUSTOM_DNS_CONF), exist_ok=True)
+    dns_records = get_custom_dns()
+    
+    if ip:
+        dns_records[domain] = ip
+    else:
+        if domain in dns_records:
+            del dns_records[domain]
+            
+    try:
+        with open(CUSTOM_DNS_CONF, 'w') as f:
+            for d, i in dns_records.items():
+                f.write(f"address=/{d}/{i}\n")
+        return True
+    except Exception as e:
+        print(f"Error writing custom DNS conf: {e}")
+        return False
+
+def apply_port_forwards():
+    try:
+        pass
+        forwards = get_port_forwards()
+        
+        router_info = get_router_info()
+        router_ip = router_info.get('ip', '')
+        
+        subprocess.run("iptables -t nat -F PREROUTING", shell=True)
+        
+        for fw in forwards:
+            src_port = fw.get('src_port')
+            dest_ip = fw.get('dest_ip')
+            dest_port = fw.get('dest_port')
+            if src_port and dest_ip and dest_port:
+                if router_ip:
+                    cmd = f"iptables -t nat -A PREROUTING -p tcp --dport {src_port} -d {router_ip} -j DNAT --to-destination {dest_ip}:{dest_port}"
+                    subprocess.run(cmd, shell=True)
+                
+    except Exception as e:
+        print(f"Error applying port forwards: {e}")
+
+def get_port_forwards():
+    forwards = []
+    try:
+        if os.path.exists(PORT_FORWARD_CONF):
+            with open(PORT_FORWARD_CONF, 'r') as f:
+                forwards = json.load(f)
+    except Exception:
+        pass
+    return forwards
+
+def set_port_forward(src_port, dest_ip, dest_port, remove=False):
+    forwards = get_port_forwards()
+    
+    forwards = [fw for fw in forwards if str(fw.get('src_port')) != str(src_port)]
+    
+    if not remove:
+        forwards.append({
+            'src_port': src_port,
+            'dest_ip': dest_ip,
+            'dest_port': dest_port
+        })
+        
+    try:
+        with open(PORT_FORWARD_CONF, 'w') as f:
+            json.dump(forwards, f)
+        apply_port_forwards()
+        return True
+    except Exception as e:
+        print(f"Error writing port forward conf: {e}")
+        return False
+
+def get_static_ips():
+    static_ips = {}
+    try:
+        if os.path.exists(STATIC_IP_CONF):
+            with open(STATIC_IP_CONF, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("dhcp-host="):
+                        parts = line[10:].split(',')
+                        if len(parts) >= 2:
+                            mac = parts[0].upper()
+                            ip = parts[1]
+                            static_ips[mac] = ip
+    except Exception:
+        pass
+    return static_ips
+
+def set_static_ip(mac, ip):
+    os.makedirs(os.path.dirname(STATIC_IP_CONF), exist_ok=True)
+    static_ips = get_static_ips()
+    
+    if ip:
+        static_ips[mac.upper()] = ip
+    else:
+        if mac.upper() in static_ips:
+            del static_ips[mac.upper()]
+            
+    try:
+        with open(STATIC_IP_CONF, 'w') as f:
+            for m, i in static_ips.items():
+                f.write(f"dhcp-host={m.lower()},{i}\n")
+        return True
+    except Exception as e:
+        print(f"Error writing static IP conf: {e}")
+        return False
 
 @app.route('/')
 def index():
     router_info = get_router_info()
     devices = get_connected_devices()
-    return render_template('index.html', router_info=router_info, devices=devices)
+    static_ips = get_static_ips()
+    dns_records = get_custom_dns()
+    port_forwards = get_port_forwards()
+    
+    for dev in devices:
+        dev['static_ip'] = static_ips.get(dev['mac'], '')
+        
+    return render_template('index.html', router_info=router_info, devices=devices, static_ips=static_ips, dns_records=dns_records, port_forwards=port_forwards)
+
+@app.route('/set_static_ip', methods=['POST'])
+def handle_set_static_ip():
+    mac = request.form.get('mac')
+    ip = request.form.get('ip')
+    if mac:
+        set_static_ip(mac, ip)
+        iface = get_wifi_interface()
+        if iface:
+            try:
+                con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
+                con_name = con_out.split(':')[1].strip()
+                if con_name and con_name != '--':
+                    subprocess.run(f"nmcli con up '{con_name}'", shell=True)
+            except Exception:
+                pass
+        time.sleep(3)
+    return redirect('/')
+
+@app.route('/set_custom_dns', methods=['POST'])
+def handle_set_custom_dns():
+    domain = request.form.get('domain')
+    ip = request.form.get('ip')
+    if domain:
+        set_custom_dns(domain, ip)
+        subprocess.run("systemctl restart NetworkManager", shell=True)
+        time.sleep(3)
+    return redirect('/')
+
+@app.route('/set_port_forward', methods=['POST'])
+def handle_set_port_forward():
+    src_port = request.form.get('src_port')
+    dest_ip = request.form.get('dest_ip')
+    dest_port = request.form.get('dest_port')
+    remove = request.form.get('remove') == 'true'
+    
+    if src_port:
+        set_port_forward(src_port, dest_ip, dest_port, remove)
+    return redirect('/')
 
 @app.route('/change_channel', methods=['POST'])
 def change_channel():
@@ -213,7 +394,6 @@ def change_channel():
             con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
             con_name = con_out.split(':')[1].strip()
             if con_name and con_name != '--':
-                # Switch band automatically based on whether channel is 2.4GHz (1-14) or 5GHz (>14)
                 band = 'bg' if int(new_channel) <= 14 else 'a'
                 subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.band '{band}'", shell=True)
                 subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.channel '{new_channel}'", shell=True)
@@ -221,7 +401,6 @@ def change_channel():
         except Exception:
             pass
             
-    # Wait a few seconds for network to re-establish
     time.sleep(3)
     return redirect('/')
 

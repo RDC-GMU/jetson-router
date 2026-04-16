@@ -10,6 +10,7 @@ This is especially useful for robotics or IoT applications where you want an iso
 - **NetworkManager integration**: Uses `nmcli` to reliably configure the hotspot.
 - **Systemd Service**: Includes scripts to run the router automatically on startup.
 - **Shared Network**: Utilizes IPv4 shared mode, providing DHCP and DNS for connected clients automatically (via `dnsmasq`).
+- **Web Admin Dashboard**: Built-in Flask app on port 80 to view connected devices, change WiFi channels, manage static IPs, set custom DNS records, and configure port forwarding natively.
 
 ## Files Included
 
@@ -79,3 +80,13 @@ chmod +x stop_service.sh
 4. When devices connect to the Jetson, they are automatically assigned an IP address (e.g., in the `10.42.0.x` range).
 5. The Jetson itself will claim the `.1` address (e.g., `10.42.0.1`). 
 6. Any device on this created network can communicate with the Jetson via `10.42.0.1`, and the Jetson can communicate with the devices using their assigned dynamic IP addresses.
+
+## Web Admin Dashboard
+
+The `setup_router.py` script automatically launches a Flask-based web interface on port 80. By navigating to `http://10.42.0.1` (or the Jetson's assigned IP) in your browser while connected to the hotspot, you can:
+
+- **View Status**: See the current SSID, password, operating frequency, and connected devices.
+- **Change Channels**: Dynamically switch the WiFi channel (e.g., 2.4GHz to 5GHz) to avoid interference.
+- **Static IPs**: Assign static IP reservations to devices based on their MAC address (configured via `/etc/NetworkManager/dnsmasq-shared.d/jetson_static_ips.conf`).
+- **Custom DNS**: Set local domain names (e.g., `uav.arc.co`) to resolve to specific IP addresses on the network using `dnsmasq` configurations.
+- **Port Forwarding**: Automatically configure native Linux `iptables` rules to silently redirect traffic arriving on specific ports (e.g., forwarding port 80 to your backend app on port 8000) without needing extra proxy software.
