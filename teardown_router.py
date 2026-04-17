@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import subprocess
 import sys
 import argparse
+import os
 
 def run_command(command, check=True):
     try:
@@ -27,9 +28,27 @@ def teardown_hotspot(con_name):
                 print(f"Removing connection: {line}")
                 run_command(f"nmcli con delete '{line}'", check=False)
                 print("Hotspot successfully removed.")
-                return
+                break
+    else:
+        print(f"Hotspot connection '{con_name}' not found.")
+
+    print("Cleaning up configuration files...")
+    files_to_remove = [
+        "/etc/NetworkManager/dnsmasq-shared.d/jetson_static_ips.conf",
+        "/etc/NetworkManager/dnsmasq-shared.d/jetson_custom_dns.conf",
+        "/etc/NetworkManager/jetson_port_forwards.json"
+    ]
+    
+    for f in files_to_remove:
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+                print(f"Removed {f}")
+            except Exception as e:
+                print(f"Failed to remove {f}: {e}")
                 
-    print(f"Hotspot connection '{con_name}' not found.")
+    print("Flushing port forwarding rules...")
+    run_command("iptables -t nat -F PREROUTING", check=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Teardown the WiFi hotspot on the Jetson")

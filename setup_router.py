@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import subprocess
 import sys
 import time
@@ -11,13 +11,13 @@ from flask import Flask, render_template, request, redirect
 def run_command(command, check=True):
     try:
         result = subprocess.run(command, check=check, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return result.stdout.strip()
+        return result.stdout.strip() if result.stdout else ""
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {command}")
-        print(f"Error output: {e.stderr.strip()}")
+        print(f"Error output: {e.stderr.strip() if e.stderr else ''}")
         if check:
             sys.exit(1)
-        return None
+        return ""
 
 def get_wifi_interface():
     output = run_command("nmcli -t -f DEVICE,TYPE d", check=False)
@@ -90,23 +90,29 @@ def get_router_info():
     }
     if iface:
         try:
-            ip_out = subprocess.check_output(f"ip -4 addr show {iface} | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){{3}}'", shell=True, text=True)
+            ip_out = run_command(f"ip -4 addr show {iface} | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){{3}}'", check=False)
             if ip_out:
                 info['ip'] = ip_out.strip()
             
-            con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
-            con_name = con_out.split(':')[1].strip()
+            con_out = run_command(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", check=False)
+            if not con_out:
+                return info
+            con_parts = con_out.split(':')
+            if len(con_parts) > 1:
+                con_name = con_parts[1].strip()
+            else:
+                return info
             if con_name and con_name != '--':
                 info['ssid'] = con_name
                 info['status'] = 'Active'
                 try:
-                    actual_ssid = subprocess.check_output(f"nmcli -t -f 802-11-wireless.ssid connection show '{con_name}'", shell=True, text=True).strip()
+                    actual_ssid = run_command(f"nmcli -t -f 802-11-wireless.ssid connection show '{con_name}'", check=False)
                     if actual_ssid and ':' in actual_ssid:
                         info['ssid'] = actual_ssid.split(':', 1)[1].strip()
                 except Exception:
                     pass
                 try:
-                    psk = subprocess.check_output(f"nmcli -s -g 802-11-wireless-security.psk connection show '{con_name}'", shell=True, text=True).strip()
+                    psk = run_command(f"nmcli -s -g 802-11-wireless-security.psk connection show '{con_name}'", check=False)
                     if psk:
                         info['password'] = psk
                     else:
@@ -117,26 +123,27 @@ def get_router_info():
                 try:
                     available_channels = []
                     current_channel = ""
-                    freq_out = subprocess.check_output(f"iwlist {iface} freq", shell=True, text=True)
-                    for line in freq_out.split('\n'):
-                        line = line.strip()
-                        if line.startswith("Channel "):
-                            match = re.search(r'Channel\s+(\d+)\s+:', line)
-                            if match:
-                                available_channels.append(str(int(match.group(1))))
-                        elif "Current Frequency:" in line:
-                            info['frequency'] = line.split('Current Frequency:')[1].strip()
-                            match = re.search(r'Channel\s+(\d+)', info['frequency'])
-                            if match:
-                                current_channel = str(int(match.group(1)))
-                        elif "channels in total" in line:
-                            match = re.search(r'(\d+) channels in total', line)
-                            if match:
-                                info['total_channels'] = match.group(1)
+                    freq_out = run_command(f"iwlist {iface} freq", check=False)
+                    if freq_out:
+                        for line in freq_out.split('\n'):
+                            line = line.strip()
+                            if line.startswith("Channel "):
+                                match = re.search(r'Channel\s+(\d+)\s+:', line)
+                                if match:
+                                    available_channels.append(str(int(match.group(1))))
+                            elif "Current Frequency:" in line:
+                                info['frequency'] = line.split('Current Frequency:')[1].strip()
+                                match = re.search(r'Channel\s+(\d+)', info['frequency'])
+                                if match:
+                                    current_channel = str(int(match.group(1)))
+                            elif "channels in total" in line:
+                                match = re.search(r'(\d+) channels in total', line)
+                                if match:
+                                    info['total_channels'] = match.group(1)
                     
                     if not current_channel:
                         try:
-                            chan_out = subprocess.check_output(f"nmcli -t -f 802-11-wireless.channel connection show '{con_name}'", shell=True, text=True).strip()
+                            chan_out = run_command(f"nmcli -t -f 802-11-wireless.channel connection show '{con_name}'", check=False)
                             if chan_out and ':' in chan_out:
                                 conf_chan = chan_out.split(':', 1)[1].strip()
                                 if conf_chan == '0':
@@ -182,74 +189,40 @@ def get_connected_devices():
                 pass
 
         try:
-            output = subprocess.check_output(f"ip neigh show dev {iface}", shell=True, text=True)
-            for line in output.split('\n'):
-                if not line.strip() or 'FAILED' in line or 'INCOMPLETE' in line:
-                    continue
-                parts = line.split()
-                if len(parts) >= 5:
-                    ip = parts[0]
-                    mac = parts[4].upper()
-                    state = parts[-1]
-                    if ip in devices:
-                        devices[ip]['state'] = f"Active ({state})"
-                    else:
-                        devices[ip] = {'ip': ip, 'mac': mac, 'state': f"Active ({state})"}
+            output = run_command(f"ip neigh show dev {iface}", check=False)
+            if output:
+                for line in output.split('\n'):
+                    if not line.strip() or 'FAILED' in line or 'INCOMPLETE' in line:
+                        continue
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        ip = parts[0]
+                        mac = parts[4].upper()
+                        state = parts[-1]
+                        if ip in devices:
+                            devices[ip]['state'] = f"Active ({state})"
+                        else:
+                            devices[ip] = {'ip': ip, 'mac': mac, 'state': f"Active ({state})"}
         except Exception:
             pass
-    static_ips = get_static_ips()
-    for dev in devices.values():
-        dev['static_ip'] = static_ips.get(dev['mac'], '')
-        
     return list(devices.values())
 
-STATIC_IP_CONF = "/etc/NetworkManager/dnsmasq-shared.d/jetson_static_ips.conf"
-CUSTOM_DNS_CONF = "/etc/NetworkManager/dnsmasq-shared.d/jetson_custom_dns.conf"
 PORT_FORWARD_CONF = "/etc/NetworkManager/jetson_port_forwards.json"
-
-def get_custom_dns():
-    dns_records = {}
-    try:
-        if os.path.exists(CUSTOM_DNS_CONF):
-            with open(CUSTOM_DNS_CONF, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("address=/"):
-                        parts = line[9:].split('/')
-                        if len(parts) >= 2:
-                            domain = parts[0]
-                            ip = parts[1]
-                            dns_records[domain] = ip
-    except Exception:
-        pass
-    return dns_records
-
-def set_custom_dns(domain, ip):
-    os.makedirs(os.path.dirname(CUSTOM_DNS_CONF), exist_ok=True)
-    dns_records = get_custom_dns()
-    
-    if ip:
-        dns_records[domain] = ip
-    else:
-        if domain in dns_records:
-            del dns_records[domain]
-            
-    try:
-        with open(CUSTOM_DNS_CONF, 'w') as f:
-            for d, i in dns_records.items():
-                f.write(f"address=/{d}/{i}\n")
-        return True
-    except Exception as e:
-        print(f"Error writing custom DNS conf: {e}")
-        return False
 
 def apply_port_forwards():
     try:
         pass
         forwards = get_port_forwards()
         
-        router_info = get_router_info()
-        router_ip = router_info.get('ip', '')
+        router_ip = ''
+        iface = get_wifi_interface()
+        if iface:
+            try:
+                ip_out = subprocess.check_output(f"ip -4 addr show {iface} | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){{3}}'", shell=True, text=True)
+                if ip_out:
+                    router_ip = ip_out.strip()
+            except Exception:
+                pass
         
         subprocess.run("iptables -t nat -F PREROUTING", shell=True)
         
@@ -296,82 +269,13 @@ def set_port_forward(src_port, dest_ip, dest_port, remove=False):
         print(f"Error writing port forward conf: {e}")
         return False
 
-def get_static_ips():
-    static_ips = {}
-    try:
-        if os.path.exists(STATIC_IP_CONF):
-            with open(STATIC_IP_CONF, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("dhcp-host="):
-                        parts = line[10:].split(',')
-                        if len(parts) >= 2:
-                            mac = parts[0].upper()
-                            ip = parts[1]
-                            static_ips[mac] = ip
-    except Exception:
-        pass
-    return static_ips
-
-def set_static_ip(mac, ip):
-    os.makedirs(os.path.dirname(STATIC_IP_CONF), exist_ok=True)
-    static_ips = get_static_ips()
-    
-    if ip:
-        static_ips[mac.upper()] = ip
-    else:
-        if mac.upper() in static_ips:
-            del static_ips[mac.upper()]
-            
-    try:
-        with open(STATIC_IP_CONF, 'w') as f:
-            for m, i in static_ips.items():
-                f.write(f"dhcp-host={m.lower()},{i}\n")
-        return True
-    except Exception as e:
-        print(f"Error writing static IP conf: {e}")
-        return False
-
 @app.route('/')
 def index():
     router_info = get_router_info()
     devices = get_connected_devices()
-    static_ips = get_static_ips()
-    dns_records = get_custom_dns()
     port_forwards = get_port_forwards()
     
-    for dev in devices:
-        dev['static_ip'] = static_ips.get(dev['mac'], '')
-        
-    return render_template('index.html', router_info=router_info, devices=devices, static_ips=static_ips, dns_records=dns_records, port_forwards=port_forwards)
-
-@app.route('/set_static_ip', methods=['POST'])
-def handle_set_static_ip():
-    mac = request.form.get('mac')
-    ip = request.form.get('ip')
-    if mac:
-        set_static_ip(mac, ip)
-        iface = get_wifi_interface()
-        if iface:
-            try:
-                con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
-                con_name = con_out.split(':')[1].strip()
-                if con_name and con_name != '--':
-                    subprocess.run(f"nmcli con up '{con_name}'", shell=True)
-            except Exception:
-                pass
-        time.sleep(3)
-    return redirect('/')
-
-@app.route('/set_custom_dns', methods=['POST'])
-def handle_set_custom_dns():
-    domain = request.form.get('domain')
-    ip = request.form.get('ip')
-    if domain:
-        set_custom_dns(domain, ip)
-        subprocess.run("systemctl restart NetworkManager", shell=True)
-        time.sleep(3)
-    return redirect('/')
+    return render_template('index.html', router_info=router_info, devices=devices, port_forwards=port_forwards)
 
 @app.route('/set_port_forward', methods=['POST'])
 def handle_set_port_forward():
@@ -391,13 +295,16 @@ def change_channel():
     
     if iface and new_channel:
         try:
-            con_out = subprocess.check_output(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", shell=True, text=True)
-            con_name = con_out.split(':')[1].strip()
-            if con_name and con_name != '--':
-                band = 'bg' if int(new_channel) <= 14 else 'a'
-                subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.band '{band}'", shell=True)
-                subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.channel '{new_channel}'", shell=True)
-                subprocess.run(f"nmcli con up '{con_name}'", shell=True)
+            con_out = run_command(f"nmcli -t -f GENERAL.CONNECTION dev show {iface}", check=False)
+            if con_out:
+                con_parts = con_out.split(':')
+                if len(con_parts) > 1:
+                    con_name = con_parts[1].strip()
+                    if con_name and con_name != '--':
+                        band = 'bg' if int(new_channel) <= 14 else 'a'
+                        subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.band '{band}'", shell=True)
+                        subprocess.run(f"nmcli con modify '{con_name}' 802-11-wireless.channel '{new_channel}'", shell=True)
+                        subprocess.run(f"nmcli con up '{con_name}'", shell=True)
         except Exception:
             pass
             

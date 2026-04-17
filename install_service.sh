@@ -4,7 +4,7 @@ set -e
 CURRENT_DIR=$(pwd)
 
 echo "Installing system dependencies..."
-sudo apt-get install -y python3-venv python3-pip wireless-tools
+sudo apt-get install -y python3-venv python3-pip wireless-tools dnsmasq-base iptables network-manager
 
 echo "Setting up Python virtual environment..."
 if [ ! -f "venv/bin/pip" ]; then
